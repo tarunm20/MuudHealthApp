@@ -8,7 +8,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: muud_health
       POSTGRES_DB: muud_health
-      # Remove trust auth - now requires password
     ports:
       - "5432:5432"
     volumes:

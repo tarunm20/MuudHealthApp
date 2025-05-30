@@ -1,3 +1,4 @@
+// backend/server.js - Fixed version with proper database connection
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -8,7 +9,11 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*', // Allow all origins for development
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Enhanced logging middleware
@@ -17,63 +22,96 @@ app.use((req, res, next) => {
   next();
 });
 
-// PostgreSQL connection configuration
-const poolConfig = {
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'muud_health',
-  port: parseInt(process.env.DB_PORT) || 5432,
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 30000,
-  max: 20,
+// Database configuration with improved error handling
+const createPoolConfig = () => {
+  const config = {
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'muud_health',
+    port: parseInt(process.env.DB_PORT) || 5432,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 20,
+    allowExitOnIdle: false,
+  };
+
+  // Handle password configuration
+  const dbPassword = process.env.DB_PASSWORD;
+  if (dbPassword && dbPassword.trim() !== '' && dbPassword !== 'undefined') {
+    config.password = dbPassword;
+    console.log('🔐 Using password authentication');
+  } else {
+    console.log('🔓 Using trust authentication (no password)');
+  }
+
+  console.log('🔧 Database Configuration:');
+  console.log(`  Host: ${config.host}`);
+  console.log(`  Port: ${config.port}`);
+  console.log(`  Database: ${config.database}`);
+  console.log(`  User: ${config.user}`);
+  console.log(`  Password: ${config.password ? '***SET***' : 'NOT SET'}`);
+
+  return config;
 };
 
-// Only add password if it exists and is not empty
-const dbPassword = process.env.DB_PASSWORD;
-if (dbPassword && dbPassword.trim() !== '' && dbPassword !== 'undefined') {
-  poolConfig.password = dbPassword;
-  console.log('✅ Using password authentication');
-} else {
-  console.log('📝 Using trust authentication (no password)');
-}
+const pool = new Pool(createPoolConfig());
 
-console.log('🔧 Database Configuration:', {
-  user: poolConfig.user,
-  host: poolConfig.host,
-  database: poolConfig.database,
-  port: poolConfig.port,
-  password: poolConfig.password ? '***set***' : 'none'
-});
-
-const pool = new Pool(poolConfig);
-
-// Test database connection with retry logic
-async function testConnection(retries = 5) {
-  for (let i = 0; i < retries; i++) {
+// Enhanced connection testing with better error handling
+async function testConnection(maxRetries = 10, retryDelay = 3000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🔄 Testing database connection (attempt ${i + 1}/${retries})...`);
+      console.log(`🔄 Testing database connection (attempt ${attempt}/${maxRetries})...`);
+      
       const client = await pool.connect();
-      const result = await client.query('SELECT NOW() as time, current_user as user, version() as version');
+      const result = await client.query(`
+        SELECT 
+          NOW() as current_time, 
+          current_user as user, 
+          current_database() as database,
+          version() as version
+      `);
+      
+      const info = result.rows[0];
       console.log('✅ Database connection successful!');
-      console.log(`   Connected as: ${result.rows[0].user}`);
-      console.log(`   Server time: ${result.rows[0].time}`);
-      console.log(`   PostgreSQL version: ${result.rows[0].version.split(' ')[0]} ${result.rows[0].version.split(' ')[1]}`);
+      console.log(`   Connected as: ${info.user}`);
+      console.log(`   Database: ${info.database}`);
+      console.log(`   Server time: ${info.current_time}`);
+      console.log(`   PostgreSQL: ${info.version.split(' ')[0]} ${info.version.split(' ')[1]}`);
+      
       client.release();
       return true;
     } catch (error) {
-      console.error(`❌ Database connection failed (attempt ${i + 1}):`, error.message);
-      if (i < retries - 1) {
-        console.log('⏳ Retrying in 3 seconds...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      console.error(`❌ Connection attempt ${attempt} failed:`, error.message);
+      
+      // Provide specific error guidance
+      if (error.code === 'ECONNREFUSED') {
+        console.log('   💡 Database server is not running or not accessible');
+      } else if (error.code === 'ENOTFOUND') {
+        console.log('   💡 Database host not found - check DB_HOST setting');
+      } else if (error.message.includes('password')) {
+        console.log('   💡 Password authentication failed - check DB_PASSWORD');
+      } else if (error.message.includes('database') && error.message.includes('does not exist')) {
+        console.log('   💡 Database does not exist - check DB_NAME setting');
+      }
+      
+      if (attempt < maxRetries) {
+        console.log(`   ⏳ Retrying in ${retryDelay/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
   }
+  
+  console.error('❌ All database connection attempts failed');
   return false;
 }
 
-// Enhanced error handling for pool
+// Pool error handling
 pool.on('error', (err, client) => {
-  console.error('💥 Unexpected error on idle client:', err);
+  console.error('💥 Unexpected database pool error:', err);
+});
+
+pool.on('connect', (client) => {
+  console.log('🔗 New database client connected');
 });
 
 // Validation schemas
@@ -90,7 +128,7 @@ const contactSchema = Joi.object({
   contact_email: Joi.string().email().required()
 });
 
-// Database initialization
+// Database initialization with better error handling
 async function initializeDatabase() {
   try {
     console.log('🔄 Initializing database tables...');
@@ -106,7 +144,7 @@ async function initializeDatabase() {
       )
     `);
 
-    // Create contacts table
+    // Create contacts table with proper constraints
     await pool.query(`
       CREATE TABLE IF NOT EXISTS contacts (
         id SERIAL PRIMARY KEY,
@@ -114,17 +152,38 @@ async function initializeDatabase() {
         contact_name VARCHAR(255) NOT NULL,
         contact_email VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, contact_email)
+        CONSTRAINT unique_user_email UNIQUE(user_id, contact_email)
       )
     `);
 
-    // Check if tables have data
-    const journalCount = await pool.query('SELECT COUNT(*) FROM journal_entries');
-    const contactsCount = await pool.query('SELECT COUNT(*) FROM contacts');
+    // Check existing data
+    const [journalCount, contactsCount] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM journal_entries'),
+      pool.query('SELECT COUNT(*) FROM contacts')
+    ]);
 
     console.log('✅ Database tables initialized successfully');
     console.log(`   Journal entries: ${journalCount.rows[0].count}`);
     console.log(`   Contacts: ${contactsCount.rows[0].count}`);
+
+    // Add sample data if tables are empty
+    if (parseInt(journalCount.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO journal_entries (user_id, entry_text, mood_rating, timestamp) VALUES
+        (1, 'Welcome to MUUD Health! Your backend is now connected and working.', 5, NOW() - INTERVAL '1 hour'),
+        (1, 'The database connection is secure and all API endpoints are functional.', 4, NOW() - INTERVAL '30 minutes')
+      `);
+      console.log('✅ Added sample journal entries');
+    }
+
+    if (parseInt(contactsCount.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO contacts (user_id, contact_name, contact_email) VALUES
+        (1, 'Dr. Sarah Wilson', 'dr.wilson@healthcare.com'),
+        (1, 'MUUD Health Support', 'support@muudhealth.com')
+      `);
+      console.log('✅ Added sample contacts');
+    }
     
     return true;
   } catch (error) {
@@ -133,17 +192,28 @@ async function initializeDatabase() {
   }
 }
 
-// Error handling middleware
-const handleError = (res, error, message = 'Internal server error') => {
+// Enhanced error handling middleware
+const handleError = (res, error, message = 'Internal server error', statusCode = 500) => {
   console.error(`❌ ${message}:`, error.message);
+  
   if (process.env.NODE_ENV === 'development') {
     console.error('Stack trace:', error.stack);
   }
   
-  res.status(500).json({ 
+  // Handle specific database errors
+  if (error.code === 'ECONNREFUSED') {
+    return res.status(503).json({
+      success: false,
+      message: 'Database connection lost',
+      error: 'The database server is not responding'
+    });
+  }
+  
+  res.status(statusCode).json({ 
     success: false, 
     message,
-    error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    timestamp: new Date().toISOString()
   });
 };
 
@@ -315,26 +385,41 @@ app.get('/contacts/user/:id', async (req, res) => {
   }
 });
 
-// Health check endpoint
+// Enhanced health check endpoint
 app.get('/health', async (req, res) => {
   try {
     const client = await pool.connect();
-    const dbStatus = await client.query('SELECT NOW(), current_user, version()');
+    const dbStatus = await client.query(`
+      SELECT 
+        NOW() as server_time, 
+        current_user as user, 
+        current_database() as database,
+        version() as version
+    `);
     client.release();
+
+    const info = dbStatus.rows[0];
 
     res.json({ 
       success: true, 
-      message: 'MUUD Health API is running',
+      message: 'MUUD Health API is running and connected',
       timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
-        user: dbStatus.rows[0].current_user,
-        server_time: dbStatus.rows[0].now,
-        version: dbStatus.rows[0].version.split(' ')[0] + ' ' + dbStatus.rows[0].version.split(' ')[1]
+        user: info.user,
+        database: info.database,
+        server_time: info.server_time,
+        version: info.version.split(' ')[0] + ' ' + info.version.split(' ')[1],
+        connection_pool: {
+          total: pool.totalCount,
+          idle: pool.idleCount,
+          waiting: pool.waitingCount
+        }
       },
       server: {
         port: port,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        uptime: process.uptime()
       }
     });
   } catch (error) {
@@ -345,17 +430,25 @@ app.get('/health', async (req, res) => {
       database: {
         status: 'disconnected',
         error: error.message
+      },
+      server: {
+        port: port,
+        environment: process.env.NODE_ENV || 'development'
       }
     });
   }
 });
 
-// Test endpoint for quick verification
+// Simple test endpoint
 app.get('/test', (req, res) => {
   res.json({
     success: true,
     message: 'MUUD Health API is working!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    server: {
+      port: port,
+      environment: process.env.NODE_ENV || 'development'
+    }
   });
 });
 
@@ -363,15 +456,39 @@ app.get('/test', (req, res) => {
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Endpoint not found: ${req.method} ${req.originalUrl}`
+    message: `Endpoint not found: ${req.method} ${req.originalUrl}`,
+    available_endpoints: [
+      'GET /health',
+      'GET /test',
+      'POST /journal/entry',
+      'GET /journal/user/:id',
+      'DELETE /journal/entry/:id',
+      'POST /contacts/add',
+      'GET /contacts/user/:id'
+    ]
   });
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n🔄 Shutting down gracefully...');
-  await pool.end();
-  console.log('✅ Database connections closed');
+  try {
+    await pool.end();
+    console.log('✅ Database connections closed');
+  } catch (error) {
+    console.error('❌ Error closing database connections:', error.message);
+  }
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('🔄 Received SIGTERM, shutting down gracefully...');
+  try {
+    await pool.end();
+    console.log('✅ Database connections closed');
+  } catch (error) {
+    console.error('❌ Error closing database connections:', error.message);
+  }
   process.exit(0);
 });
 
@@ -380,27 +497,38 @@ async function startServer() {
   try {
     console.log('🚀 Starting MUUD Health API server...');
     console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 CORS enabled for all origins (development mode)`);
     
-    // Test database connection with retries
+    // Test database connection
     const dbConnected = await testConnection();
     
     if (dbConnected) {
-      await initializeDatabase();
-      console.log('🎯 Backend is ready for API calls!');
+      const dbInitialized = await initializeDatabase();
+      if (dbInitialized) {
+        console.log('🎯 Backend is fully ready for API calls!');
+      } else {
+        console.log('⚠️ Server starting with database connection but initialization failed');
+      }
     } else {
-      console.log('⚠️  Server starting without database connection');
-      console.log('💡 To fix database connection:');
-      console.log('   1. Make sure Docker is running');
-      console.log('   2. Check PostgreSQL container: docker ps');
-      console.log('   3. Check container logs: docker logs muud_health_db');
-      console.log('   4. Reset containers: docker-compose down -v && docker-compose up -d');
+      console.log('⚠️ Server starting without database connection');
+      console.log('');
+      console.log('💡 Troubleshooting steps:');
+      console.log('1. Check if Docker is running: docker ps');
+      console.log('2. Check PostgreSQL container: docker logs muud_health_db');
+      console.log('3. Verify .env file has correct password');
+      console.log('4. Reset containers: docker-compose down -v && docker-compose up -d');
+      console.log('5. Wait 10-15 seconds for database to fully start');
     }
 
-    app.listen(port, () => {
-      console.log(`✅ MUUD Health API server running on port ${port}`);
-      console.log(`🌐 Health check: http://localhost:${port}/health`);
+    app.listen(port, '0.0.0.0', () => {
+      console.log('');
+      console.log('✅ MUUD Health API server is running!');
+      console.log(`🌐 Local: http://localhost:${port}`);
+      console.log(`🌐 Network: http://0.0.0.0:${port}`);
+      console.log(`🏥 Health check: http://localhost:${port}/health`);
       console.log(`🧪 Test endpoint: http://localhost:${port}/test`);
-      console.log('📚 API Endpoints:');
+      console.log('');
+      console.log('📚 Available API endpoints:');
       console.log('   POST /journal/entry      - Create journal entry');
       console.log('   GET  /journal/user/:id   - Get user journal entries');
       console.log('   DELETE /journal/entry/:id - Delete journal entry');
@@ -408,6 +536,7 @@ async function startServer() {
       console.log('   GET  /contacts/user/:id  - Get user contacts');
       console.log('   GET  /health             - Health check');
       console.log('   GET  /test               - Simple test');
+      console.log('');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -416,5 +545,3 @@ async function startServer() {
 }
 
 startServer();
-
-module.exports = app;

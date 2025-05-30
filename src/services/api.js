@@ -1,6 +1,5 @@
-// Complete API Service for MUUD Health - Backend Connection
-// src/services/api.js
-
+// src/services/api.js - Auto IP Detection Version
+import * as Network from 'expo-network';
 import {
   getJournalEntries,
   addJournalEntry,
@@ -10,18 +9,93 @@ import {
   getUserId,
 } from '../utils/storage';
 
-// Configuration
-const API_BASE_URL = 'http://localhost:3000'; // Your backend URL
-const USE_BACKEND = true; // Set to false to use local storage only
-const REQUEST_TIMEOUT = 10000; // 10 seconds
+// Auto-detect computer IP or fallback options
+let API_BASE_URL = null;
 
-// Helper function for API calls with timeout and error handling
-const apiCall = async (url, options = {}) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
+const getComputerIP = async () => {
   try {
-    console.log(`🔄 API Call: ${options.method || 'GET'} ${url}`);
+    // Method 1: Try to get network info from Expo
+    const networkState = await Network.getNetworkStateAsync();
+    if (networkState.isConnected) {
+      const ipAddress = await Network.getIpAddressAsync();
+      console.log(`📱 Device IP: ${ipAddress}`);
+      
+      // Convert device IP to likely computer IP
+      // If device is 192.168.1.123, computer is likely 192.168.1.1 or 192.168.1.100
+      const segments = ipAddress.split('.');
+      if (segments.length === 4) {
+        const baseIP = `${segments[0]}.${segments[1]}.${segments[2]}`;
+        
+        // Try common computer IPs in the same subnet
+        const commonEndings = ['1', '100', '101', '102', '2', '10', '50'];
+        
+        for (const ending of commonEndings) {
+          const testIP = `${baseIP}.${ending}`;
+          if (await testIPConnection(testIP)) {
+            console.log(`✅ Found computer at: ${testIP}`);
+            return testIP;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log('⚠️ Network detection failed:', error.message);
+  }
+  
+  // Method 2: Try common IP ranges
+  const commonRanges = [
+    '192.168.1', '192.168.0', '10.0.0', '172.16.0'
+  ];
+  
+  for (const range of commonRanges) {
+    const commonIPs = ['1', '100', '101', '102', '2', '10'];
+    for (const ending of commonIPs) {
+      const testIP = `${range}.${ending}`;
+      if (await testIPConnection(testIP)) {
+        console.log(`✅ Found computer at: ${testIP}`);
+        return testIP;
+      }
+    }
+  }
+  
+  // Method 3: Fallback to localhost (works on web/simulator)
+  console.log('🔄 Falling back to localhost');
+  return 'localhost';
+};
+
+const testIPConnection = async (ip) => {
+  try {
+    const response = await fetch(`http://${ip}:3000/health`, {
+      method: 'GET',
+      timeout: 2000, // Quick timeout
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+// Initialize API URL
+const initializeAPI = async () => {
+  if (!API_BASE_URL) {
+    console.log('🔍 Auto-detecting backend server...');
+    const computerIP = await getComputerIP();
+    API_BASE_URL = `http://${computerIP}:3000`;
+    console.log(`🌐 API Base URL: ${API_BASE_URL}`);
+  }
+  return API_BASE_URL;
+};
+
+// Simple API call function
+const callAPI = async (endpoint, options = {}) => {
+  try {
+    const baseURL = await initializeAPI();
+    const url = `${baseURL}${endpoint}`;
+    
+    console.log(`🔄 Calling API: ${url}`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     
     const response = await fetch(url, {
       ...options,
@@ -35,297 +109,159 @@ const apiCall = async (url, options = {}) => {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`API Error ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    console.log(`✅ API Success: ${options.method || 'GET'} ${url}`);
+    console.log(`✅ API Success: ${url}`);
     return data;
   } catch (error) {
-    clearTimeout(timeoutId);
-    
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out. Please check your connection.');
+      throw new Error('Request timed out');
     }
     
-    // Network error or backend unavailable
-    if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
-      throw new Error('Cannot connect to server. Please ensure the backend is running on http://localhost:3000');
+    console.log(`❌ API Failed: ${error.message}`);
+    
+    if (error.message.includes('Network request failed') || 
+        error.message.includes('fetch') ||
+        error.message.includes('Failed to fetch')) {
+      throw new Error('Cannot connect to backend server. Make sure it\'s running and you\'re on the same network.');
     }
     
-    console.error(`❌ API Error: ${options.method || 'GET'} ${url} - ${error.message}`);
     throw error;
   }
 };
 
-// Helper function to simulate network delay (for development)
-const simulateNetworkDelay = (ms = 200) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+// Journal API Functions
+export const getJournalEntriesAPI = async () => {
+  try {
+    const userId = await getUserId();
+    const result = await callAPI(`/journal/user/${userId}`);
+    console.log(`📖 Got ${result.entries.length} entries from backend`);
+    return result.entries;
+  } catch (error) {
+    console.log('📱 Using local storage for journal entries');
+    return await getJournalEntries();
+  }
 };
 
-// Journal API
-export const journalAPI = {
-  // Get all journal entries for the current user
-  getEntries: async () => {
-    if (!USE_BACKEND) {
-      await simulateNetworkDelay();
-      return await getJournalEntries();
-    }
+export const createJournalEntryAPI = async (entryData) => {
+  try {
+    const userId = await getUserId();
+    const requestData = {
+      ...entryData,
+      user_id: parseInt(userId),
+    };
 
-    try {
-      const userId = await getUserId();
-      const data = await apiCall(`${API_BASE_URL}/journal/user/${userId}`);
-      
-      if (data.success) {
-        console.log(`📖 Retrieved ${data.entries.length} journal entries from backend`);
-        return data.entries;
-      } else {
-        throw new Error(data.message || 'Failed to fetch entries');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching journal entries from backend:', error.message);
-      
-      // Fallback to local storage
-      console.log('🔄 Falling back to local storage...');
-      return await getJournalEntries();
-    }
-  },
+    const result = await callAPI('/journal/entry', {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    });
 
-  // Create a new journal entry
-  createEntry: async (entryData) => {
-    if (!USE_BACKEND) {
-      await simulateNetworkDelay();
-      const userId = await getUserId();
-      const entry = {
-        ...entryData,
-        user_id: parseInt(userId),
-      };
-      return await addJournalEntry(entry);
-    }
-
-    try {
-      const userId = await getUserId();
-      
-      const requestData = {
-        ...entryData,
-        user_id: parseInt(userId),
-        timestamp: new Date().toISOString(),
-      };
-
-      const data = await apiCall(`${API_BASE_URL}/journal/entry`, {
-        method: 'POST',
-        body: JSON.stringify(requestData),
-      });
-
-      if (data.success) {
-        console.log(`📝 Created journal entry on backend (ID: ${data.entry_id})`);
-        
-        // Return the entry in the format expected by the frontend
-        return {
-          id: data.entry_id,
-          ...entryData,
-          user_id: parseInt(userId),
-          timestamp: data.timestamp || new Date().toISOString(),
-        };
-      } else {
-        throw new Error(data.message || 'Failed to create entry');
-      }
-    } catch (error) {
-      console.error('❌ Error creating journal entry on backend:', error.message);
-      
-      // Fallback to local storage
-      console.log('🔄 Falling back to local storage...');
-      const userId = await getUserId();
-      const entry = {
-        ...entryData,
-        user_id: parseInt(userId),
-      };
-      return await addJournalEntry(entry);
-    }
-  },
-
-  // Delete a journal entry
-  deleteEntry: async (entryId) => {
-    if (!USE_BACKEND) {
-      await simulateNetworkDelay();
-      return await deleteJournalEntry(entryId);
-    }
-
-    try {
-      const data = await apiCall(`${API_BASE_URL}/journal/entry/${entryId}`, {
-        method: 'DELETE',
-      });
-
-      if (data.success) {
-        console.log(`🗑️ Deleted journal entry ${entryId} from backend`);
-        return true;
-      } else {
-        throw new Error(data.message || 'Failed to delete entry');
-      }
-    } catch (error) {
-      console.error('❌ Error deleting journal entry from backend:', error.message);
-      
-      // Fallback to local storage
-      console.log('🔄 Falling back to local storage...');
-      return await deleteJournalEntry(entryId);
-    }
-  },
+    console.log(`📝 Created entry ${result.entry_id} on backend`);
+    return {
+      id: result.entry_id,
+      ...entryData,
+      user_id: parseInt(userId),
+      timestamp: result.timestamp || new Date().toISOString(),
+    };
+  } catch (error) {
+    console.log('📱 Using local storage for journal entry');
+    const userId = await getUserId();
+    return await addJournalEntry({
+      ...entryData,
+      user_id: parseInt(userId),
+    });
+  }
 };
 
-// Contacts API
-export const contactsAPI = {
-  // Get all contacts for the current user
-  getContacts: async () => {
-    if (!USE_BACKEND) {
-      await simulateNetworkDelay();
-      return await getContacts();
-    }
-
-    try {
-      const userId = await getUserId();
-      const data = await apiCall(`${API_BASE_URL}/contacts/user/${userId}`);
-      
-      if (data.success) {
-        console.log(`👥 Retrieved ${data.contacts.length} contacts from backend`);
-        return data.contacts;
-      } else {
-        throw new Error(data.message || 'Failed to fetch contacts');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching contacts from backend:', error.message);
-      
-      // Fallback to local storage
-      console.log('🔄 Falling back to local storage...');
-      return await getContacts();
-    }
-  },
-
-  // Add a new contact
-  addContact: async (contactData) => {
-    if (!USE_BACKEND) {
-      await simulateNetworkDelay();
-      const userId = await getUserId();
-      const contact = {
-        ...contactData,
-        user_id: parseInt(userId),
-      };
-      return await addContact(contact);
-    }
-
-    try {
-      const userId = await getUserId();
-      
-      const requestData = {
-        ...contactData,
-        user_id: parseInt(userId),
-      };
-
-      const data = await apiCall(`${API_BASE_URL}/contacts/add`, {
-        method: 'POST',
-        body: JSON.stringify(requestData),
-      });
-
-      if (data.success) {
-        console.log(`👤 Added contact on backend (ID: ${data.contact_id})`);
-        
-        // Return the contact in the format expected by the frontend
-        return {
-          id: data.contact_id,
-          ...contactData,
-          user_id: parseInt(userId),
-          created_at: data.created_at || new Date().toISOString(),
-        };
-      } else {
-        throw new Error(data.message || 'Failed to add contact');
-      }
-    } catch (error) {
-      console.error('❌ Error adding contact on backend:', error.message);
-      
-      // Check if it's a duplicate error
-      if (error.message.includes('already exists')) {
-        throw error; // Re-throw duplicate errors to show user
-      }
-      
-      // Fallback to local storage for other errors
-      console.log('🔄 Falling back to local storage...');
-      const userId = await getUserId();
-      const contact = {
-        ...contactData,
-        user_id: parseInt(userId),
-      };
-      return await addContact(contact);
-    }
-  },
+export const deleteJournalEntryAPI = async (entryId) => {
+  try {
+    await callAPI(`/journal/entry/${entryId}`, {
+      method: 'DELETE',
+    });
+    console.log(`🗑️ Deleted entry ${entryId} from backend`);
+    return true;
+  } catch (error) {
+    console.log('📱 Using local storage for delete');
+    return await deleteJournalEntry(entryId);
+  }
 };
 
-// Health check API
-export const healthAPI = {
-  checkStatus: async () => {
-    if (!USE_BACKEND) {
-      return {
-        success: true,
-        message: 'Running in local storage mode',
-        storage: 'local',
-      };
-    }
-
-    try {
-      const data = await apiCall(`${API_BASE_URL}/health`);
-      console.log('🏥 Backend health check passed');
-      return data;
-    } catch (error) {
-      console.error('❌ Backend health check failed:', error.message);
-      return {
-        success: false,
-        message: 'Backend unavailable - using local storage fallback',
-        storage: 'local',
-        error: error.message,
-      };
-    }
-  },
+// Contacts API Functions
+export const getContactsAPI = async () => {
+  try {
+    const userId = await getUserId();
+    const result = await callAPI(`/contacts/user/${userId}`);
+    console.log(`👥 Got ${result.contacts.length} contacts from backend`);
+    return result.contacts;
+  } catch (error) {
+    console.log('📱 Using local storage for contacts');
+    return await getContacts();
+  }
 };
 
-// Connection test function
+export const addContactAPI = async (contactData) => {
+  try {
+    const userId = await getUserId();
+    const requestData = {
+      ...contactData,
+      user_id: parseInt(userId),
+    };
+
+    const result = await callAPI('/contacts/add', {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    });
+
+    console.log(`👤 Created contact ${result.contact_id} on backend`);
+    return {
+      id: result.contact_id,
+      ...contactData,
+      user_id: parseInt(userId),
+      created_at: result.created_at || new Date().toISOString(),
+    };
+  } catch (error) {
+    if (error.message.includes('already exists') || error.message.includes('409')) {
+      throw new Error('A contact with this email already exists');
+    }
+    
+    console.log('📱 Using local storage for contact');
+    const userId = await getUserId();
+    return await addContact({
+      ...contactData,
+      user_id: parseInt(userId),
+    });
+  }
+};
+
+// Test connection function
 export const testConnection = async () => {
   try {
-    console.log('🧪 Testing backend connection...');
-    const health = await healthAPI.checkStatus();
-    
-    if (health.success) {
-      console.log('✅ Backend connection successful');
-      return {
-        connected: true,
-        message: 'Connected to backend successfully',
-        details: health,
-      };
-    } else {
-      console.log('⚠️ Backend connection failed, using local storage');
-      return {
-        connected: false,
-        message: 'Backend unavailable, using local storage',
-        details: health,
-      };
-    }
-  } catch (error) {
-    console.error('❌ Connection test failed:', error.message);
+    const baseURL = await initializeAPI();
+    const result = await callAPI('/health');
     return {
-      connected: false,
-      message: 'Connection test failed',
+      success: true,
+      message: 'Backend connected successfully!',
+      url: baseURL,
+      data: result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Backend not available',
       error: error.message,
+      url: API_BASE_URL || 'Not initialized',
     };
   }
 };
 
-// Utility function to switch between backend and local mode
-export const setBackendMode = (useBackend) => {
-  USE_BACKEND = useBackend;
-  console.log(`🔧 API mode changed to: ${useBackend ? 'Backend' : 'Local Storage'}`);
+// Manual IP override (if auto-detection fails)
+export const setManualIP = (ip) => {
+  API_BASE_URL = `http://${ip}:3000`;
+  console.log(`🔧 Manual IP set: ${API_BASE_URL}`);
 };
 
-// Export individual functions for convenience (these now use backend)
-export const getJournalEntriesAPI = journalAPI.getEntries;
-export const createJournalEntryAPI = journalAPI.createEntry;
-export const deleteJournalEntryAPI = journalAPI.deleteEntry;
-export const getContactsAPI = contactsAPI.getContacts;
-export const addContactAPI = contactsAPI.addContact;
+// Get current API URL
+export const getCurrentAPIURL = () => API_BASE_URL;
