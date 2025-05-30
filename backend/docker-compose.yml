@@ -6,8 +6,8 @@ services:
     container_name: muud_health_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
       POSTGRES_DB: muud_health
+      POSTGRES_HOST_AUTH_METHOD: trust  # This removes password requirement
     ports:
       - "5432:5432"
     volumes:
@@ -16,4 +16,3 @@ services:
 
 volumes:
   postgres_data:
-
