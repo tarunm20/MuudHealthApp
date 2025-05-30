@@ -4,6 +4,7 @@
 import {
   getJournalEntries,
   addJournalEntry,
+  deleteJournalEntry,
   getContacts,
   addContact,
   getUserId,
@@ -90,6 +91,35 @@ export const journalAPI = {
         user_id: parseInt(userId),
       };
       return await addJournalEntry(entry);
+    }
+  },
+
+  // Delete a journal entry
+  deleteEntry: async (entryId) => {
+    if (USE_LOCAL_STORAGE) {
+      await simulateNetworkDelay();
+      return await deleteJournalEntry(entryId);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/journal/entry/${entryId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        return true;
+      } else {
+        throw new Error(data.message || 'Failed to delete entry');
+      }
+    } catch (error) {
+      console.error('Error deleting journal entry:', error);
+      // Fallback to local storage
+      return await deleteJournalEntry(entryId);
     }
   },
 };
@@ -203,5 +233,6 @@ export const setAPIMode = (useAPI) => {
 // Export individual functions for convenience
 export const getJournalEntriesAPI = journalAPI.getEntries;
 export const createJournalEntryAPI = journalAPI.createEntry;
+export const deleteJournalEntryAPI = journalAPI.deleteEntry;
 export const getContactsAPI = contactsAPI.getContacts;
 export const addContactAPI = contactsAPI.addContact;

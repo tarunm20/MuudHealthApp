@@ -43,6 +43,18 @@ export const addJournalEntry = async (entry) => {
   }
 };
 
+export const deleteJournalEntry = async (entryId) => {
+  try {
+    const entries = await getJournalEntries();
+    const updatedEntries = entries.filter(entry => entry.id !== entryId);
+    await saveJournalEntries(updatedEntries);
+    return true;
+  } catch (error) {
+    console.error('Error deleting journal entry:', error);
+    throw error;
+  }
+};
+
 // Contact Storage
 export const saveContacts = async (contacts) => {
   try {

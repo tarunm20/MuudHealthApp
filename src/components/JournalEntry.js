@@ -4,10 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function JournalEntry({ entry, onPress }) {
+export default function JournalEntry({ entry, onPress, onDelete }) {
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -66,6 +67,46 @@ export default function JournalEntry({ entry, onPress }) {
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Entry',
+      'Are you sure you want to delete this journal entry? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => onDelete && onDelete(entry),
+        },
+      ]
+    );
+  };
+
+  const handleLongPress = () => {
+    Alert.alert(
+      'Journal Entry Options',
+      'What would you like to do with this entry?',
+      [
+        {
+          text: 'View Full Entry',
+          onPress: () => onPress && onPress(entry),
+        },
+        {
+          text: 'Delete Entry',
+          style: 'destructive',
+          onPress: handleDelete,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const truncateText = (text, maxLength = 120) => {
     if (text.length <= maxLength) return text;
     return text.substr(0, maxLength) + '...';
@@ -75,19 +116,29 @@ export default function JournalEntry({ entry, onPress }) {
     <TouchableOpacity
       style={styles.container}
       onPress={() => onPress && onPress(entry)}
+      onLongPress={handleLongPress}
       activeOpacity={0.7}
     >
-      {/* Header with date and mood */}
+      {/* Header with date, mood, and delete button */}
       <View style={styles.header}>
         <View style={styles.dateContainer}>
           <Text style={styles.date}>{formatDate(entry.timestamp)}</Text>
           <Text style={styles.time}>{formatTime(entry.timestamp)}</Text>
         </View>
-        <View style={[styles.moodContainer, { backgroundColor: getMoodColor(entry.mood_rating) + '20' }]}>
-          <Text style={styles.moodEmoji}>{getMoodEmoji(entry.mood_rating)}</Text>
-          <Text style={[styles.moodText, { color: getMoodColor(entry.mood_rating) }]}>
-            {getMoodLabel(entry.mood_rating)}
-          </Text>
+        <View style={styles.headerRight}>
+          <View style={[styles.moodContainer, { backgroundColor: getMoodColor(entry.mood_rating) + '20' }]}>
+            <Text style={styles.moodEmoji}>{getMoodEmoji(entry.mood_rating)}</Text>
+            <Text style={[styles.moodText, { color: getMoodColor(entry.mood_rating) }]}>
+              {getMoodLabel(entry.mood_rating)}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -99,8 +150,15 @@ export default function JournalEntry({ entry, onPress }) {
       {/* Footer with read more indicator */}
       {entry.entry_text.length > 120 && (
         <View style={styles.footer}>
-          <Text style={styles.readMore}>Tap to read more</Text>
+          <Text style={styles.readMore}>Tap to read more • Long press for options</Text>
           <Ionicons name="chevron-forward" size={16} color="#666" />
+        </View>
+      )}
+      
+      {/* If entry is short, show long press hint */}
+      {entry.entry_text.length <= 120 && (
+        <View style={styles.footer}>
+          <Text style={styles.readMore}>Long press for options</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -142,12 +200,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   moodContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    marginRight: 8,
   },
   moodEmoji: {
     fontSize: 16,
@@ -156,6 +219,11 @@ const styles = StyleSheet.create({
   moodText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  deleteButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: '#FF3B301A',
   },
   entryText: {
     fontSize: 14,

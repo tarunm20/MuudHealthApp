@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { getJournalEntriesAPI } from '../services/api';
+import { getJournalEntriesAPI, deleteJournalEntryAPI } from '../services/api';
 import JournalEntry from '../components/JournalEntry';
 
 export default function JournalScreen({ navigation }) {
@@ -52,6 +52,38 @@ export default function JournalScreen({ navigation }) {
     setModalVisible(true);
   };
 
+  const handleDeleteEntry = async (entry) => {
+    try {
+      console.log('Deleting entry:', entry.id);
+      setLoading(true);
+      
+      await deleteJournalEntryAPI(entry.id);
+      
+      // Remove the entry from local state immediately for better UX
+      setEntries(prevEntries => prevEntries.filter(e => e.id !== entry.id));
+      
+      Alert.alert(
+        'Entry Deleted',
+        'Your journal entry has been successfully deleted.',
+        [{ text: 'OK' }]
+      );
+      
+      console.log('Entry deleted successfully');
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+      Alert.alert(
+        'Delete Failed',
+        'Failed to delete the journal entry. Please try again.',
+        [{ text: 'OK' }]
+      );
+      
+      // Reload entries to ensure consistency
+      await loadEntries();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatFullDate = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('en-US', {
@@ -88,7 +120,11 @@ export default function JournalScreen({ navigation }) {
   };
 
   const renderEntry = ({ item }) => (
-    <JournalEntry entry={item} onPress={handleEntryPress} />
+    <JournalEntry 
+      entry={item} 
+      onPress={handleEntryPress} 
+      onDelete={handleDeleteEntry}
+    />
   );
 
   const renderEmptyState = () => (
@@ -184,6 +220,18 @@ export default function JournalScreen({ navigation }) {
                   <Text style={styles.modalEntryText}>
                     {selectedEntry.entry_text}
                   </Text>
+
+                  {/* Delete button in modal */}
+                  <TouchableOpacity
+                    style={styles.modalDeleteButton}
+                    onPress={() => {
+                      setModalVisible(false);
+                      setTimeout(() => handleDeleteEntry(selectedEntry), 300);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                    <Text style={styles.modalDeleteText}>Delete Entry</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             )}
@@ -327,5 +375,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     lineHeight: 24,
+    marginBottom: 20,
+  },
+  modalDeleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B301A',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  modalDeleteText: {
+    color: '#FF3B30',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
