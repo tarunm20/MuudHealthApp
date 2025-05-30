@@ -43,14 +43,37 @@ export const addJournalEntry = async (entry) => {
   }
 };
 
+
+
 export const deleteJournalEntry = async (entryId) => {
   try {
+    console.log('🗑️ Deleting entry with ID:', entryId, 'Type:', typeof entryId);
+    
     const entries = await getJournalEntries();
-    const updatedEntries = entries.filter(entry => entry.id !== entryId);
+    console.log('📚 Current entries:', entries.length);
+    console.log('📋 Entry IDs:', entries.map(e => ({ id: e.id, type: typeof e.id })));
+    
+    // Convert both IDs to strings for comparison to handle type mismatches
+    const updatedEntries = entries.filter(entry => {
+      const match = String(entry.id) !== String(entryId);
+      if (!match) {
+        console.log('🎯 Found entry to delete:', entry.id);
+      }
+      return match;
+    });
+    
+    console.log('📚 Updated entries count:', updatedEntries.length);
+    
+    if (updatedEntries.length === entries.length) {
+      console.log('⚠️ No entry was deleted - ID not found');
+      throw new Error(`Entry with ID ${entryId} not found`);
+    }
+    
     await saveJournalEntries(updatedEntries);
+    console.log('✅ Entry deleted successfully');
     return true;
   } catch (error) {
-    console.error('Error deleting journal entry:', error);
+    console.error('❌ Error deleting journal entry:', error);
     throw error;
   }
 };

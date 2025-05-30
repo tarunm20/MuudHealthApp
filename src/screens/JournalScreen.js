@@ -52,35 +52,63 @@ export default function JournalScreen({ navigation }) {
     setModalVisible(true);
   };
 
-  const handleDeleteEntry = async (entry) => {
+  const handleDeleteEntry = async (entryToDelete) => {
     try {
-      console.log('Deleting entry:', entry.id);
-      setLoading(true);
+      console.log('Deleting entry:', entryToDelete);
       
-      await deleteJournalEntryAPI(entry.id);
+      // Close modal first if it's open
+      if (modalVisible) {
+        setModalVisible(false);
+      }
       
-      // Remove the entry from local state immediately for better UX
-      setEntries(prevEntries => prevEntries.filter(e => e.id !== entry.id));
-      
+      // Show confirmation
       Alert.alert(
-        'Entry Deleted',
-        'Your journal entry has been successfully deleted.',
-        [{ text: 'OK' }]
+        'Delete Entry',
+        'Are you sure you want to delete this journal entry? This action cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setLoading(true);
+                
+                console.log('Calling deleteJournalEntryAPI with ID:', entryToDelete.id);
+                await deleteJournalEntryAPI(entryToDelete.id);
+                
+                // Remove the entry from local state immediately for better UX
+                setEntries(prevEntries => prevEntries.filter(e => e.id !== entryToDelete.id));
+                
+                Alert.alert(
+                  'Entry Deleted',
+                  'Your journal entry has been successfully deleted.',
+                  [{ text: 'OK' }]
+                );
+                
+                console.log('Entry deleted successfully');
+              } catch (error) {
+                console.error('Error deleting entry:', error);
+                Alert.alert(
+                  'Delete Failed',
+                  'Failed to delete the journal entry. Please try again.',
+                  [{ text: 'OK' }]
+                );
+                
+                // Reload entries to ensure consistency
+                await loadEntries();
+              } finally {
+                setLoading(false);
+              }
+            },
+          },
+        ]
       );
-      
-      console.log('Entry deleted successfully');
     } catch (error) {
-      console.error('Error deleting entry:', error);
-      Alert.alert(
-        'Delete Failed',
-        'Failed to delete the journal entry. Please try again.',
-        [{ text: 'OK' }]
-      );
-      
-      // Reload entries to ensure consistency
-      await loadEntries();
-    } finally {
-      setLoading(false);
+      console.error('Error in handleDeleteEntry:', error);
     }
   };
 
@@ -224,10 +252,7 @@ export default function JournalScreen({ navigation }) {
                   {/* Delete button in modal */}
                   <TouchableOpacity
                     style={styles.modalDeleteButton}
-                    onPress={() => {
-                      setModalVisible(false);
-                      setTimeout(() => handleDeleteEntry(selectedEntry), 300);
-                    }}
+                    onPress={() => handleDeleteEntry(selectedEntry)}
                   >
                     <Ionicons name="trash-outline" size={20} color="#FF3B30" />
                     <Text style={styles.modalDeleteText}>Delete Entry</Text>

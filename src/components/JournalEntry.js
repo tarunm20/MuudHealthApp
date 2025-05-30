@@ -119,26 +119,17 @@ export default function JournalEntry({ entry, onPress, onDelete }) {
       onLongPress={handleLongPress}
       activeOpacity={0.7}
     >
-      {/* Header with date, mood, and delete button */}
+      {/* Header with date and mood (no delete button) */}
       <View style={styles.header}>
         <View style={styles.dateContainer}>
           <Text style={styles.date}>{formatDate(entry.timestamp)}</Text>
           <Text style={styles.time}>{formatTime(entry.timestamp)}</Text>
         </View>
-        <View style={styles.headerRight}>
-          <View style={[styles.moodContainer, { backgroundColor: getMoodColor(entry.mood_rating) + '20' }]}>
-            <Text style={styles.moodEmoji}>{getMoodEmoji(entry.mood_rating)}</Text>
-            <Text style={[styles.moodText, { color: getMoodColor(entry.mood_rating) }]}>
-              {getMoodLabel(entry.mood_rating)}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={handleDelete}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="trash-outline" size={18} color="#FF3B30" />
-          </TouchableOpacity>
+        <View style={[styles.moodContainer, { backgroundColor: getMoodColor(entry.mood_rating) + '20' }]}>
+          <Text style={styles.moodEmoji}>{getMoodEmoji(entry.mood_rating)}</Text>
+          <Text style={[styles.moodText, { color: getMoodColor(entry.mood_rating) }]}>
+            {getMoodLabel(entry.mood_rating)}
+          </Text>
         </View>
       </View>
 
@@ -200,17 +191,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   moodContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    marginRight: 8,
   },
   moodEmoji: {
     fontSize: 16,
@@ -219,11 +205,6 @@ const styles = StyleSheet.create({
   moodText: {
     fontSize: 12,
     fontWeight: '600',
-  },
-  deleteButton: {
-    padding: 4,
-    borderRadius: 12,
-    backgroundColor: '#FF3B301A',
   },
   entryText: {
     fontSize: 14,

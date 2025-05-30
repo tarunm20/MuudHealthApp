@@ -40,3 +40,29 @@ yarn-error.*
 backend/node_modules/
 backend/.env
 backend/*.log
+
+# IMPORTANT: Never commit environment files with passwords!
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Database dumps and backups
+*.sql
+*.dump
+*.backup
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
