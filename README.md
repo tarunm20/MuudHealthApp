@@ -1,2 +1,787 @@
+# MUUD Health - Community Wellness App
+
+A comprehensive wellness application featuring journaling and contact management, built with React Native (Expo) frontend and Node.js/PostgreSQL backend.
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick Start Guide](#quick-start-guide)
+- [Detailed Setup Instructions](#detailed-setup-instructions)
+- [Project Structure](#project-structure)
+- [API Documentation](#api-documentation)
+- [Development Workflow](#development-workflow)
+- [Troubleshooting](#troubleshooting)
+- [Production Deployment](#production-deployment)
+- [Contributing](#contributing)
+
+## 📖 Overview
+
+MUUD Health is a wellness companion app that helps users track their mental health through journaling and maintain their support network through contact management. The app demonstrates modern full-stack development practices with proper backend integration and local storage fallbacks.
+
+### Key Features
+
+- **Journal Management**: Create, view, and delete personal journal entries with mood ratings
+- **Contact Management**: Add and organize healthcare providers, therapists, family, and friends
+- **Cross-Platform**: Works on iOS, Android, and Web via Expo
+- **Offline Support**: Local storage fallback when backend is unavailable
+- **Real-time Sync**: Automatic data synchronization with PostgreSQL backend
+
+### Tech Stack
+
+**Frontend:**
+- React Native with Expo SDK 53
+- React Navigation for routing
+- AsyncStorage for local data
+- Expo Vector Icons for UI
+
+**Backend:**
+- Node.js with Express.js
+- PostgreSQL database
+- Docker for containerization
+- Joi for data validation
+- CORS enabled for cross-origin requests
+
+## 🏗️ Architecture
+
+```
+MUUD Health App
+├── Frontend (React Native/Expo)
+│   ├── Screens (Home, Journal, Contacts, Add forms)
+│   ├── Components (Reusable UI components)
+│   ├── Services (API layer with fallbacks)
+│   └── Utils (Local storage management)
+├── Backend (Node.js/Express)
+│   ├── REST API endpoints
+│   ├── Database models
+│   ├── Validation middleware
+│   └── Error handling
+└── Database (PostgreSQL)
+    ├── journal_entries table
+    └── contacts table
+```
+
+## 🔧 Prerequisites
+
+### Required Software
+
+1. **Node.js** (v16 or higher)
+   - Download from [nodejs.org](https://nodejs.org/)
+   - Verify: `node --version` and `npm --version`
+
+2. **Docker Desktop**
+   - Download from [docker.com](https://www.docker.com/products/docker-desktop/)
+   - Required for PostgreSQL database
+   - Verify: `docker --version`
+
+3. **Expo CLI** (for React Native development)
+   ```bash
+   npm install -g @expo/cli
+   ```
+
+4. **Git** (for version control)
+   - Download from [git-scm.com](https://git-scm.com/)
+
+### Mobile Development (Optional)
+
+**For iOS Development:**
+- macOS with Xcode installed
+- iOS Simulator
+
+**For Android Development:**
+- Android Studio with Android SDK
+- Android Emulator or physical device
+
+**Alternative:** Use Expo Go app on your phone for quick testing
+
+## 🚀 Quick Start Guide
+
+### Option 1: Automated Setup (Windows PowerShell)
+
+```powershell
+# 1. Clone the repository
+git clone <repository-url>
+cd muud-health-app
+
+# 2. Setup backend (run from project root)
+powershell -ExecutionPolicy Bypass -File backend/setup-backend.ps1
+
+# 3. Setup frontend (new terminal, from project root)
+npm install
+npx expo start
+```
+
+### Option 2: Manual Setup (All Platforms)
+
+```bash
+# 1. Clone and navigate
+git clone <repository-url>
+cd muud-health-app
+
+# 2. Install frontend dependencies
+npm install
+
+# 3. Setup backend
+cd backend
+npm install
+
+# 4. Start PostgreSQL database
+docker-compose up -d
+
+# 5. Wait for database to initialize (10-15 seconds)
+sleep 15
+
+# 6. Test database connection
+node diagnostics.js
+
+# 7. Start backend server
+npm run dev
+
+# 8. Start frontend (new terminal, from project root)
+cd ..
+npx expo start
+```
+
+## 📝 Detailed Setup Instructions
+
+### 1. Project Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd muud-health-app
+
+# Install frontend dependencies
+npm install
+```
+
+### 2. Backend Configuration
+
+#### Environment Setup
+
+Create `backend/.env` file:
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=muud_health
+DB_USER=postgres
+DB_PASSWORD=muud_health
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+```
+
+#### Database Setup
+
+```bash
+cd backend
+
+# Install backend dependencies
+npm install
+
+# Start PostgreSQL with Docker
+docker-compose up -d
+
+# Wait for database initialization
+# Check status: docker ps
+# View logs: docker logs muud_health_db
+
+# Test database connection
+node diagnostics.js
+```
+
+#### Database Schema
+
+The database will automatically create these tables:
+
+```sql
+-- Journal entries table
+CREATE TABLE journal_entries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    entry_text TEXT NOT NULL,
+    mood_rating INTEGER CHECK (mood_rating >= 1 AND mood_rating <= 5),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Contacts table
+CREATE TABLE contacts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    contact_name VARCHAR(255) NOT NULL,
+    contact_email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, contact_email)
+);
+```
+
+### 3. Frontend Configuration
+
+The frontend is pre-configured to work with the backend. Key configuration in `src/services/api.js`:
+
+```javascript
+const API_BASE_URL = 'http://localhost:3000';
+const USE_BACKEND = true; // Set to false for local-only mode
+```
+
+### 4. Running the Application
+
+#### Start Backend Server
+
+```bash
+cd backend
+npm run dev
+
+# Server will start on http://localhost:3000
+# Health check: http://localhost:3000/health
+```
+
+#### Start Frontend Application
+
+```bash
+# From project root
+npx expo start
+
+# Choose your platform:
+# - Press 'w' for web
+# - Press 'i' for iOS simulator
+# - Press 'a' for Android emulator
+# - Scan QR code with Expo Go app
+```
+
+## 📁 Project Structure
+
+```
+muud-health-app/
+├── App.js                          # Main app component with navigation
+├── package.json                    # Frontend dependencies
+├── app.json                        # Expo configuration
+├── index.js                        # App entry point
+├── .gitignore                      # Git ignore rules
+│
+├── src/
+│   ├── screens/                    # Screen components
+│   │   ├── HomeScreen.js           # Dashboard with stats and quick actions
+│   │   ├── JournalScreen.js        # Journal entries list
+│   │   ├── AddJournalEntryScreen.js # Create new journal entry
+│   │   ├── ContactsScreen.js       # Contacts list with search
+│   │   └── AddContactScreen.js     # Add new contact form
+│   │
+│   ├── components/                 # Reusable components
+│   │   ├── JournalEntry.js         # Journal entry card
+│   │   └── ContactCard.js          # Contact card with actions
+│   │
+│   ├── services/                   # API and data services
+│   │   └── api.js                  # Backend API calls with fallbacks
+│   │
+│   └── utils/                      # Utility functions
+│       └── storage.js              # Local storage management
+│
+├── backend/                        # Backend server
+│   ├── server.js                   # Express server with API endpoints
+│   ├── package.json                # Backend dependencies
+│   ├── docker-compose.yml          # PostgreSQL container config
+│   ├── diagnostics.js              # Database connection tester
+│   ├── setup-backend.ps1           # Windows setup script
+│   ├── setup-db.ps1                # Database setup script
+│   └── .env                        # Environment variables (create this)
+│
+└── assets/                         # App assets (icons, images)
+    ├── icon.png
+    ├── splash-icon.png
+    ├── adaptive-icon.png
+    └── favicon.png
+```
+
+## 🔌 API Documentation
+
+### Journal Endpoints
+
+#### Create Journal Entry
+```http
+POST /journal/entry
+Content-Type: application/json
+
 {
-# MUUD Health - Community Wellness App\n\nA comprehensive wellness application featuring journaling and contact management, built with React Native (Expo) frontend and Node.js/PostgreSQL backend.\n\n## 📋 Table of Contents\n\n- [Overview](#overview)\n- [Architecture](#architecture)\n- [Prerequisites](#prerequisites)\n- [Quick Start Guide](#quick-start-guide)\n- [Detailed Setup Instructions](#detailed-setup-instructions)\n- [Project Structure](#project-structure)\n- [API Documentation](#api-documentation)\n- [Development Workflow](#development-workflow)\n- [Troubleshooting](#troubleshooting)\n- [Production Deployment](#production-deployment)\n- [Contributing](#contributing)\n\n## 📖 Overview\n\nMUUD Health is a wellness companion app that helps users track their mental health through journaling and maintain their support network through contact management. The app demonstrates modern full-stack development practices with proper backend integration and local storage fallbacks.\n\n### Key Features\n\n- **Journal Management**: Create, view, and delete personal journal entries with mood ratings\n- **Contact Management**: Add and organize healthcare providers, therapists, family, and friends\n- **Cross-Platform**: Works on iOS, Android, and Web via Expo\n- **Offline Support**: Local storage fallback when backend is unavailable\n- **Real-time Sync**: Automatic data synchronization with PostgreSQL backend\n\n### Tech Stack\n\n**Frontend:**\n- React Native with Expo SDK 53\n- React Navigation for routing\n- AsyncStorage for local data\n- Expo Vector Icons for UI\n\n**Backend:**\n- Node.js with Express.js\n- PostgreSQL database\n- Docker for containerization\n- Joi for data validation\n- CORS enabled for cross-origin requests\n\n## 🏗️ Architecture\n\n```\nMUUD Health App\n├── Frontend (React Native/Expo)\n│   ├── Screens (Home, Journal, Contacts, Add forms)\n│   ├── Components (Reusable UI components)\n│   ├── Services (API layer with fallbacks)\n│   └── Utils (Local storage management)\n├── Backend (Node.js/Express)\n│   ├── REST API endpoints\n│   ├── Database models\n│   ├── Validation middleware\n│   └── Error handling\n└── Database (PostgreSQL)\n    ├── journal_entries table\n    └── contacts table\n```\n\n## 🔧 Prerequisites\n\n### Required Software\n\n1. **Node.js** (v16 or higher)\n   - Download from [nodejs.org](https://nodejs.org/)\n   - Verify: `node --version` and `npm --version`\n\n2. **Docker Desktop**\n   - Download from [docker.com](https://www.docker.com/products/docker-desktop/)\n   - Required for PostgreSQL database\n   - Verify: `docker --version`\n\n3. **Expo CLI** (for React Native development)\n   ```bash\n   npm install -g @expo/cli\n   ```\n\n4. **Git** (for version control)\n   - Download from [git-scm.com](https://git-scm.com/)\n\n### Mobile Development (Optional)\n\n**For iOS Development:**\n- macOS with Xcode installed\n- iOS Simulator\n\n**For Android Development:**\n- Android Studio with Android SDK\n- Android Emulator or physical device\n\n**Alternative:** Use Expo Go app on your phone for quick testing\n\n## 🚀 Quick Start Guide\n\n### Option 1: Automated Setup (Windows PowerShell)\n\n```powershell\n# 1. Clone the repository\ngit clone <repository-url>\ncd muud-health-app\n\n# 2. Setup backend (run from project root)\ncd backend\npowershell -ExecutionPolicy Bypass -File setup-backend.ps1\n\n# 3. Setup frontend (new terminal, from project root)\nnpm install\nnpx expo start\n```\n\n### Option 2: Manual Setup (All Platforms)\n\n```bash\n# 1. Clone and navigate\ngit clone <repository-url>\ncd muud-health-app\n\n# 2. Install frontend dependencies\nnpm install\n\n# 3. Setup backend\ncd backend\nnpm install\n\n# 4. Start PostgreSQL database\ndocker-compose up -d\n\n# 5. Wait for database to initialize (10-15 seconds)\nsleep 15\n\n# 6. Test database connection\nnode diagnostics.js\n\n# 7. Start backend server\nnpm run dev\n\n# 8. Start frontend (new terminal, from project root)\ncd ..\nnpx expo start\n```\n\n## 📝 Detailed Setup Instructions\n\n### 1. Project Setup\n\n```bash\n# Clone the repository\ngit clone <repository-url>\ncd muud-health-app\n\n# Install frontend dependencies\nnpm install\n```\n\n### 2. Backend Configuration\n\n#### Environment Setup\n\nCreate `backend/.env` file:\n\n```env\n# Database Configuration\nDB_HOST=localhost\nDB_PORT=5432\nDB_NAME=muud_health\nDB_USER=postgres\nDB_PASSWORD=muud_health\n\n# Server Configuration\nPORT=3000\nNODE_ENV=development\n```\n\n#### Database Setup\n\n```bash\ncd backend\n\n# Install backend dependencies\nnpm install\n\n# Start PostgreSQL with Docker\ndocker-compose up -d\n\n# Wait for database initialization\n# Check status: docker ps\n# View logs: docker logs muud_health_db\n\n# Test database connection\nnode diagnostics.js\n```\n\n#### Database Schema\n\nThe database will automatically create these tables:\n\n```sql\n-- Journal entries table\nCREATE TABLE journal_entries (\n    id SERIAL PRIMARY KEY,\n    user_id INTEGER NOT NULL,\n    entry_text TEXT NOT NULL,\n    mood_rating INTEGER CHECK (mood_rating >= 1 AND mood_rating <= 5),\n    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- Contacts table\nCREATE TABLE contacts (\n    id SERIAL PRIMARY KEY,\n    user_id INTEGER NOT NULL,\n    contact_name VARCHAR(255) NOT NULL,\n    contact_email VARCHAR(255) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    UNIQUE(user_id, contact_email)\n);\n```\n\n### 3. Frontend Configuration\n\nThe frontend is pre-configured to work with the backend. Key configuration in `src/services/api.js`:\n\n```javascript\nconst API_BASE_URL = 'http://localhost:3000';\nconst USE_BACKEND = true; // Set to false for local-only mode\n```\n\n### 4. Running the Application\n\n#### Start Backend Server\n\n```bash\ncd backend\nnpm run dev\n\n# Server will start on http://localhost:3000\n# Health check: http://localhost:3000/health\n```\n\n#### Start Frontend Application\n\n```bash\n# From project root\nnpx expo start\n\n# Choose your platform:\n# - Press 'w' for web\n# - Press 'i' for iOS simulator\n# - Press 'a' for Android emulator\n# - Scan QR code with Expo Go app\n```\n\n## 📁 Project Structure\n\n```\nmuud-health-app/\n├── App.js                          # Main app component with navigation\n├── package.json                    # Frontend dependencies\n├── app.json                        # Expo configuration\n├── index.js                        # App entry point\n├── .gitignore                      # Git ignore rules\n│\n├── src/\n│   ├── screens/                    # Screen components\n│   │   ├── HomeScreen.js           # Dashboard with stats and quick actions\n│   │   ├── JournalScreen.js        # Journal entries list\n│   │   ├── AddJournalEntryScreen.js # Create new journal entry\n│   │   ├── ContactsScreen.js       # Contacts list with search\n│   │   └── AddContactScreen.js     # Add new contact form\n│   │\n│   ├── components/                 # Reusable components\n│   │   ├── JournalEntry.js         # Journal entry card\n│   │   └── ContactCard.js          # Contact card with actions\n│   │\n│   ├── services/                   # API and data services\n│   │   └── api.js                  # Backend API calls with fallbacks\n│   │\n│   └── utils/                      # Utility functions\n│       └── storage.js              # Local storage management\n│\n├── backend/                        # Backend server\n│   ├── server.js                   # Express server with API endpoints\n│   ├── package.json                # Backend dependencies\n│   ├── docker-compose.yml          # PostgreSQL container config\n│   ├── diagnostics.js              # Database connection tester\n│   ├── setup-backend.ps1           # Windows setup script\n│   ├── setup-db.ps1                # Database setup script\n│   └── .env                        # Environment variables (create this)\n│\n└── assets/                         # App assets (icons, images)\n    ├── icon.png\n    ├── splash-icon.png\n    ├── adaptive-icon.png\n    └── favicon.png\n```\n\n## 🔌 API Documentation\n\n### Journal Endpoints\n\n#### Create Journal Entry\n```http\nPOST /journal/entry\nContent-Type: application/json\n\n{\n  \"user_id\": 1,\n  \"entry_text\": \"Had a great day today!\",\n  \"mood_rating\": 5\n}\n```\n\n#### Get User's Journal Entries\n```http\nGET /journal/user/:id\n```\n\n#### Delete Journal Entry\n```http\nDELETE /journal/entry/:id\n```\n\n### Contact Endpoints\n\n#### Add Contact\n```http\nPOST /contacts/add\nContent-Type: application/json\n\n{\n  \"user_id\": 1,\n  \"contact_name\": \"Dr. Smith\",\n  \"contact_email\": \"dr.smith@healthcare.com\"\n}\n```\n\n#### Get User's Contacts\n```http\nGET /contacts/user/:id\n```\n\n### Utility Endpoints\n\n#### Health Check\n```http\nGET /health\n```\n\n#### Simple Test\n```http\nGET /test\n```\n\n### Response Format\n\nAll API responses follow this format:\n\n```json\n{\n  \"success\": true,\n  \"message\": \"Operation completed successfully\",\n  \"data\": {},\n  \"count\": 5\n}\n```\n\nError responses:\n\n```json\n{\n  \"success\": false,\n  \"message\": \"Error description\",\n  \"error\": \"Detailed error message\"\n}\n```\n\n## 🔄 Development Workflow\n\n### Daily Development\n\n1. **Start Database** (if not running):\n   ```bash\n   cd backend && docker-compose up -d\n   ```\n\n2. **Start Backend**:\n   ```bash\n   cd backend && npm run dev\n   ```\n\n3. **Start Frontend**:\n   ```bash\n   npx expo start\n   ```\n\n### Making Changes\n\n#### Frontend Changes\n- Modify files in `src/` directory\n- Changes auto-reload in Expo\n- Use React Native debugger for debugging\n\n#### Backend Changes\n- Modify `backend/server.js`\n- Server auto-restarts with nodemon\n- Use console logs and API testing tools\n\n#### Database Changes\n- Connect directly: \n  ```bash\n  docker exec -it muud_health_db psql -U postgres -d muud_health\n  ```\n- Use SQL commands or modify initialization in `server.js`\n\n### Testing\n\n#### Manual Testing\n\n1. **API Testing** with curl:\n   ```bash\n   # Health check\n   curl http://localhost:3000/health\n   \n   # Create journal entry\n   curl -X POST http://localhost:3000/journal/entry \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"user_id\":1,\"entry_text\":\"Test entry\",\"mood_rating\":4}'\n   \n   # Get entries\n   curl http://localhost:3000/journal/user/1\n   ```\n\n2. **Database Testing**:\n   ```bash\n   # Run diagnostics\n   cd backend && node diagnostics.js\n   \n   # Manual connection\n   docker exec -it muud_health_db psql -U postgres -d muud_health\n   \n   # List tables\n   \\dt\n   \n   # Query data\n   SELECT * FROM journal_entries LIMIT 5;\n   SELECT * FROM contacts LIMIT 5;\n   ```\n\n#### Frontend Testing\n\n1. **Web Browser**: Press 'w' in Expo CLI\n2. **iOS Simulator**: Press 'i' in Expo CLI (macOS only)\n3. **Android Emulator**: Press 'a' in Expo CLI\n4. **Physical Device**: Install Expo Go app and scan QR code\n\n### Data Management\n\n#### Local Storage (Fallback Mode)\n- Data stored in device's AsyncStorage\n- Persists between app restarts\n- Used when backend is unavailable\n\n#### Backend Mode\n- Data stored in PostgreSQL\n- Synced across devices\n- Local storage used as fallback\n\n#### Switching Modes\nModify `src/services/api.js`:\n```javascript\nconst USE_BACKEND = false; // Switch to local-only mode\n```\n\n## 🐛 Troubleshooting\n\n### Common Issues\n\n#### 1. Database Connection Failed\n\n**Symptoms:**\n- \"Cannot connect to database\" errors\n- Backend health check fails\n- API calls timeout\n\n**Solutions:**\n```bash\n# Check Docker status\ndocker ps\n\n# Restart database\ncd backend\ndocker-compose down\ndocker-compose up -d\n\n# Wait 15 seconds, then test\nsleep 15\nnode diagnostics.js\n\n# Reset completely if needed\ndocker-compose down -v\ndocker system prune -f\ndocker-compose up -d\n```\n\n#### 2. Backend Server Won't Start\n\n**Symptoms:**\n- Port 3000 already in use\n- Module not found errors\n- Permission denied\n\n**Solutions:**\n```bash\n# Kill process on port 3000\nnpx kill-port 3000\n\n# Reinstall dependencies\ncd backend\nrm -rf node_modules package-lock.json\nnpm install\n\n# Check permissions (Unix)\nchmod +x setup-backend.ps1\n```\n\n#### 3. Frontend Won't Connect to Backend\n\n**Symptoms:**\n- \"Network request failed\"\n- API calls fail in app\n- App works but no data syncs\n\n**Solutions:**\n1. **Check backend URL** in `src/services/api.js`:\n   ```javascript\n   const API_BASE_URL = 'http://localhost:3000';\n   ```\n\n2. **Verify backend is running**:\n   ```bash\n   curl http://localhost:3000/health\n   ```\n\n3. **Check network connectivity**:\n   - Web: Use browser dev tools\n   - Mobile: Ensure phone and computer on same network\n   - Simulator: Check network settings\n\n#### 4. Expo/React Native Issues\n\n**Symptoms:**\n- Metro bundler fails\n- App crashes on startup\n- Missing dependencies\n\n**Solutions:**\n```bash\n# Clear cache\nnpx expo start --clear\n\n# Reset metro cache\nnpx expo start -c\n\n# Reinstall dependencies\nrm -rf node_modules package-lock.json\nnpm install\n\n# Check Expo version\nnpx expo --version\n```\n\n#### 5. Database Initialization Issues\n\n**Symptoms:**\n- Tables don't exist\n- Sample data missing\n- Permission denied errors\n\n**Solutions:**\n```bash\n# Manual database setup\ndocker exec -it muud_health_db psql -U postgres -d muud_health\n\n# Create tables manually\nCREATE TABLE IF NOT EXISTS journal_entries (\n    id SERIAL PRIMARY KEY,\n    user_id INTEGER NOT NULL,\n    entry_text TEXT NOT NULL,\n    mood_rating INTEGER CHECK (mood_rating >= 1 AND mood_rating <= 5),\n    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n# Exit and restart backend\n\\q\n```\n\n### Platform-Specific Issues\n\n#### Windows\n- Use PowerShell scripts: `setup-backend.ps1`\n- Docker Desktop must be running\n- Windows Defender might block Docker ports\n\n#### macOS\n```bash\n# Install Homebrew if needed\n/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n\n# Install dependencies\nbrew install node docker\n```\n\n#### Linux\n```bash\n# Install Docker\nsudo apt-get update\nsudo apt-get install docker.io docker-compose\n\n# Add user to docker group\nsudo usermod -aG docker $USER\n```\n\n### Debug Mode\n\nEnable detailed logging:\n\n1. **Backend Debugging**:\n   ```bash\n   # Set environment variable\n   export DEBUG=*\n   npm run dev\n   ```\n\n2. **Frontend Debugging**:\n   ```javascript\n   // In src/services/api.js\n   const DEBUG_MODE = true;\n   ```\n\n3. **Database Debugging**:\n   ```bash\n   # View all logs\n   docker logs muud_health_db\n\n   # Follow logs in real-time\n   docker logs -f muud_health_db\n   ```\n\n### Getting Help\n\n1. **Check the logs**:\n   - Backend: Terminal output where `npm run dev` is running\n   - Frontend: Expo dev tools in browser\n   - Database: `docker logs muud_health_db`\n\n2. **Run diagnostics**:\n   ```bash\n   cd backend && node diagnostics.js\n   ```\n\n3. **Verify setup**:\n   ```bash\n   # Check all services\n   docker ps                    # Database running?\n   curl localhost:3000/health   # Backend responding?\n   npx expo doctor             # Expo environment OK?\n   ```\n\n## 🚀 Production Deployment\n\n### Environment Variables\n\nCreate production `.env` file:\n\n```env\n# Production Database\nDB_HOST=your-production-db-host\nDB_PORT=5432\nDB_NAME=muud_health_prod\nDB_USER=your-db-user\nDB_PASSWORD=your-secure-password\n\n# Production Server\nPORT=3000\nNODE_ENV=production\n\n# Security\nJWT_SECRET=your-jwt-secret\nENCRYPTION_KEY=your-encryption-key\n```\n\n### Backend Deployment\n\n#### Using Docker\n\n```bash\n# Build production image\ndocker build -t muud-health-backend .\n\n# Run with production environment\ndocker run -d \\\n  --name muud-health-api \\\n  -p 3000:3000 \\\n  --env-file .env.production \\\n  muud-health-backend\n```\n\n#### Using PM2\n\n```bash\n# Install PM2\nnpm install -g pm2\n\n# Start with PM2\npm2 start server.js --name muud-health-api\n\n# Setup auto-restart\npm2 startup\npm2 save\n```\n\n### Frontend Deployment\n\n#### Web Deployment\n\n```bash\n# Build for web\nnpx expo export --platform web\n\n# Deploy to static hosting (Netlify, Vercel, etc.)\n# Upload dist/ folder\n```\n\n#### Mobile App Store\n\n```bash\n# Build for iOS\nnpx expo build:ios\n\n# Build for Android\nnpx expo build:android\n\n# Or use EAS Build\nnpx expo install @expo/eas-cli\neas build --platform all\n```\n\n### Database Migration\n\n```sql\n-- Production database setup\n-- Run these commands on your production PostgreSQL\n\nCREATE DATABASE muud_health_prod;\n\n\\c muud_health_prod;\n\n-- Create tables (same as development)\n-- Import any existing data\n-- Set up backups and monitoring\n```\n\n## 🤝 Contributing\n\n### Development Guidelines\n\n1. **Code Style**:\n   - Use ESLint configuration\n   - Follow React Native best practices\n   - Use meaningful variable names\n   - Add comments for complex logic\n\n2. **Git Workflow**:\n   ```bash\n   # Create feature branch\n   git checkout -b feature/your-feature-name\n   \n   # Make changes and commit\n   git add .\n   git commit -m \"Add: your feature description\"\n   \n   # Push and create PR\n   git push origin feature/your-feature-name\n   ```\n\n3. **Testing**:\n   - Test on multiple platforms\n   - Verify both backend and local storage modes\n   - Check edge cases and error handling\n\n### File Organization\n\n- **Screens**: Main UI screens in `src/screens/`\n- **Components**: Reusable components in `src/components/`\n- **Services**: API and data logic in `src/services/`\n- **Utils**: Helper functions in `src/utils/`\n- **Backend**: Server code in `backend/`\n\n### Adding New Features\n\n1. **Database Changes**: Update schema in `server.js`\n2. **API Endpoints**: Add routes in `server.js`\n3. **Frontend Service**: Update `src/services/api.js`\n4. **UI Components**: Create/update screens and components\n5. **Local Storage**: Update `src/utils/storage.js` for offline support\n\n---\n\n## 📞 Support\n\nIf you encounter issues not covered in this guide:\n\n1. Check the troubleshooting section above\n2. Run the diagnostic script: `node backend/diagnostics.js`\n3. Review logs for error details\n4. Ensure all prerequisites are properly installed\n\n## 🔗 Useful Links\n\n- [Expo Documentation](https://docs.expo.dev/)\n- [React Navigation](https://reactnavigation.org/)\n- [Express.js Guide](https://expressjs.com/)\n- [PostgreSQL Documentation](https://www.postgresql.org/docs/)\n- [Docker Documentation](https://docs.docker.com/)\n\n---\n\n**Happy coding! 🎉**\n\nThis README provides complete setup instructions for the MUUD Health wellness application. Follow the steps carefully, and you'll have a fully functional app with both frontend and backend components working together.
+  "user_id": 1,
+  "entry_text": "Had a great day today!",
+  "mood_rating": 5
+}
+```
+
+#### Get User's Journal Entries
+```http
+GET /journal/user/:id
+```
+
+#### Delete Journal Entry
+```http
+DELETE /journal/entry/:id
+```
+
+### Contact Endpoints
+
+#### Add Contact
+```http
+POST /contacts/add
+Content-Type: application/json
+
+{
+  "user_id": 1,
+  "contact_name": "Dr. Smith",
+  "contact_email": "dr.smith@healthcare.com"
+}
+```
+
+#### Get User's Contacts
+```http
+GET /contacts/user/:id
+```
+
+### Utility Endpoints
+
+#### Health Check
+```http
+GET /health
+```
+
+#### Simple Test
+```http
+GET /test
+```
+
+### Response Format
+
+All API responses follow this format:
+
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": {},
+  "count": 5
+}
+```
+
+Error responses:
+
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "error": "Detailed error message"
+}
+```
+
+## 🔄 Development Workflow
+
+### Daily Development
+
+1. **Start Database** (if not running):
+   ```bash
+   cd backend && docker-compose up -d
+   ```
+
+2. **Start Backend**:
+   ```bash
+   cd backend && npm run dev
+   ```
+
+3. **Start Frontend**:
+   ```bash
+   npx expo start
+   ```
+
+### Making Changes
+
+#### Frontend Changes
+- Modify files in `src/` directory
+- Changes auto-reload in Expo
+- Use React Native debugger for debugging
+
+#### Backend Changes
+- Modify `backend/server.js`
+- Server auto-restarts with nodemon
+- Use console logs and API testing tools
+
+#### Database Changes
+- Connect directly: 
+  ```bash
+  docker exec -it muud_health_db psql -U postgres -d muud_health
+  ```
+- Use SQL commands or modify initialization in `server.js`
+
+### Testing
+
+#### Manual Testing
+
+1. **API Testing** with curl:
+   ```bash
+   # Health check
+   curl http://localhost:3000/health
+   
+   # Create journal entry
+   curl -X POST http://localhost:3000/journal/entry \
+     -H "Content-Type: application/json" \
+     -d '{"user_id":1,"entry_text":"Test entry","mood_rating":4}'
+   
+   # Get entries
+   curl http://localhost:3000/journal/user/1
+   ```
+
+2. **Database Testing**:
+   ```bash
+   # Run diagnostics
+   cd backend && node diagnostics.js
+   
+   # Manual connection
+   docker exec -it muud_health_db psql -U postgres -d muud_health
+   
+   # List tables
+   \dt
+   
+   # Query data
+   SELECT * FROM journal_entries LIMIT 5;
+   SELECT * FROM contacts LIMIT 5;
+   ```
+
+#### Frontend Testing
+
+1. **Web Browser**: Press 'w' in Expo CLI
+2. **iOS Simulator**: Press 'i' in Expo CLI (macOS only)
+3. **Android Emulator**: Press 'a' in Expo CLI
+4. **Physical Device**: Install Expo Go app and scan QR code
+
+### Data Management
+
+#### Local Storage (Fallback Mode)
+- Data stored in device's AsyncStorage
+- Persists between app restarts
+- Used when backend is unavailable
+
+#### Backend Mode
+- Data stored in PostgreSQL
+- Synced across devices
+- Local storage used as fallback
+
+#### Switching Modes
+Modify `src/services/api.js`:
+```javascript
+const USE_BACKEND = false; // Switch to local-only mode
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+#### 1. Database Connection Failed
+
+**Symptoms:**
+- "Cannot connect to database" errors
+- Backend health check fails
+- API calls timeout
+
+**Solutions:**
+```bash
+# Check Docker status
+docker ps
+
+# Restart database
+cd backend
+docker-compose down
+docker-compose up -d
+
+# Wait 15 seconds, then test
+sleep 15
+node diagnostics.js
+
+# Reset completely if needed
+docker-compose down -v
+docker system prune -f
+docker-compose up -d
+```
+
+#### 2. Backend Server Won't Start
+
+**Symptoms:**
+- Port 3000 already in use
+- Module not found errors
+- Permission denied
+
+**Solutions:**
+```bash
+# Kill process on port 3000
+npx kill-port 3000
+
+# Reinstall dependencies
+cd backend
+rm -rf node_modules package-lock.json
+npm install
+
+# Check permissions (Unix)
+chmod +x setup-backend.ps1
+```
+
+#### 3. Frontend Won't Connect to Backend
+
+**Symptoms:**
+- "Network request failed"
+- API calls fail in app
+- App works but no data syncs
+
+**Solutions:**
+1. **Check backend URL** in `src/services/api.js`:
+   ```javascript
+   const API_BASE_URL = 'http://localhost:3000';
+   ```
+
+2. **Verify backend is running**:
+   ```bash
+   curl http://localhost:3000/health
+   ```
+
+3. **Check network connectivity**:
+   - Web: Use browser dev tools
+   - Mobile: Ensure phone and computer on same network
+   - Simulator: Check network settings
+
+#### 4. Expo/React Native Issues
+
+**Symptoms:**
+- Metro bundler fails
+- App crashes on startup
+- Missing dependencies
+
+**Solutions:**
+```bash
+# Clear cache
+npx expo start --clear
+
+# Reset metro cache
+npx expo start -c
+
+# Reinstall dependencies
+rm -rf node_modules package-lock.json
+npm install
+
+# Check Expo version
+npx expo --version
+```
+
+#### 5. Database Initialization Issues
+
+**Symptoms:**
+- Tables don't exist
+- Sample data missing
+- Permission denied errors
+
+**Solutions:**
+```bash
+# Manual database setup
+docker exec -it muud_health_db psql -U postgres -d muud_health
+
+# Create tables manually
+CREATE TABLE IF NOT EXISTS journal_entries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    entry_text TEXT NOT NULL,
+    mood_rating INTEGER CHECK (mood_rating >= 1 AND mood_rating <= 5),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+# Exit and restart backend
+\q
+```
+
+### Platform-Specific Issues
+
+#### Windows
+- Use PowerShell scripts: `setup-backend.ps1`
+- Docker Desktop must be running
+- Windows Defender might block Docker ports
+
+#### macOS
+```bash
+# Install Homebrew if needed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install dependencies
+brew install node docker
+```
+
+#### Linux
+```bash
+# Install Docker
+sudo apt-get update
+sudo apt-get install docker.io docker-compose
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+```
+
+### Debug Mode
+
+Enable detailed logging:
+
+1. **Backend Debugging**:
+   ```bash
+   # Set environment variable
+   export DEBUG=*
+   npm run dev
+   ```
+
+2. **Frontend Debugging**:
+   ```javascript
+   // In src/services/api.js
+   const DEBUG_MODE = true;
+   ```
+
+3. **Database Debugging**:
+   ```bash
+   # View all logs
+   docker logs muud_health_db
+
+   # Follow logs in real-time
+   docker logs -f muud_health_db
+   ```
+
+### Getting Help
+
+1. **Check the logs**:
+   - Backend: Terminal output where `npm run dev` is running
+   - Frontend: Expo dev tools in browser
+   - Database: `docker logs muud_health_db`
+
+2. **Run diagnostics**:
+   ```bash
+   cd backend && node diagnostics.js
+   ```
+
+3. **Verify setup**:
+   ```bash
+   # Check all services
+   docker ps                    # Database running?
+   curl localhost:3000/health   # Backend responding?
+   npx expo doctor             # Expo environment OK?
+   ```
+
+## 🚀 Production Deployment
+
+### Environment Variables
+
+Create production `.env` file:
+
+```env
+# Production Database
+DB_HOST=your-production-db-host
+DB_PORT=5432
+DB_NAME=muud_health_prod
+DB_USER=your-db-user
+DB_PASSWORD=your-secure-password
+
+# Production Server
+PORT=3000
+NODE_ENV=production
+
+# Security
+JWT_SECRET=your-jwt-secret
+ENCRYPTION_KEY=your-encryption-key
+```
+
+### Backend Deployment
+
+#### Using Docker
+
+```bash
+# Build production image
+docker build -t muud-health-backend .
+
+# Run with production environment
+docker run -d \
+  --name muud-health-api \
+  -p 3000:3000 \
+  --env-file .env.production \
+  muud-health-backend
+```
+
+#### Using PM2
+
+```bash
+# Install PM2
+npm install -g pm2
+
+# Start with PM2
+pm2 start server.js --name muud-health-api
+
+# Setup auto-restart
+pm2 startup
+pm2 save
+```
+
+### Frontend Deployment
+
+#### Web Deployment
+
+```bash
+# Build for web
+npx expo export --platform web
+
+# Deploy to static hosting (Netlify, Vercel, etc.)
+# Upload dist/ folder
+```
+
+#### Mobile App Store
+
+```bash
+# Build for iOS
+npx expo build:ios
+
+# Build for Android
+npx expo build:android
+
+# Or use EAS Build
+npx expo install @expo/eas-cli
+eas build --platform all
+```
+
+### Database Migration
+
+```sql
+-- Production database setup
+-- Run these commands on your production PostgreSQL
+
+CREATE DATABASE muud_health_prod;
+
+\c muud_health_prod;
+
+-- Create tables (same as development)
+-- Import any existing data
+-- Set up backups and monitoring
+```
+
+## 📞 Support
+
+If you encounter issues not covered in this guide:
+
+1. Check the troubleshooting section above
+2. Run the diagnostic script: `node backend/diagnostics.js`
+3. Review logs for error details
+4. Ensure all prerequisites are properly installed
+
+## 🔗 Useful Links
+
+- [Expo Documentation](https://docs.expo.dev/)
+- [React Navigation](https://reactnavigation.org/)
+- [Express.js Guide](https://expressjs.com/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Docker Documentation](https://docs.docker.com/)
+
+---
+
+**Happy coding! 🎉**
+
+This README provides complete setup instructions for the MUUD Health wellness application. Follow the steps carefully, and you'll have a fully functional app with both frontend and backend components working together.
